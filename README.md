@@ -12,3 +12,6 @@ A drawing system which shares one canvas by WebRTC
   - change the pencil color with color picker.
   - change the size of pencil with the slider.
   - clear canvas with "Clear" button.
+
+## Demo
+  [GitHub Pages](https://kimtm.github.io/live-drawing/)
