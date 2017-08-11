@@ -1,0 +1,245 @@
+<!DOCTYPE html>
+<html>
+<head>
+  <meta charset="UTF-8">
+  <meta name="robots" content="noindex,nofollow">
+  <meta http-equiv="Pragma" content="no-cache" />
+  <meta http-equiv="cache-control" content="no-cache" />
+  <meta http-equiv="expires" content="0" />
+  <meta name="viewport" content="width=device-width,initial-scale=1">
+  <title>live-drawing</title>
+  <script>
+    // httpアクセスの場合httpsにリダイレクトさせる
+    if(location.protocol == 'http:'){
+      location.replace(location.href.replace(/http:/, 'https:'));
+    }
+  </script>
+
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/jquery/3.2.1/jquery.min.js"></script>
+  <script src="https://skyway.io/dist/0.3/peer.min.js"></script>
+  <script src="https://skyway.io/dist/multiparty.min.js"></script>
+
+  <script>
+
+    const SKYWAY_API_KEY = "b4b40ddc-34ef-4621-aed9-2d53c3e8f777";  // SkyWayのAPIkey
+    let multiparty;
+    let myPeer = {
+      "id": "",
+      "name": "名無し"
+    };
+    let peers = {};
+
+    window.addEventListener("load", ()=>{
+      "use strict"
+      
+      /* シグナリングサーバと接続 */
+      multiparty = new MultiParty({
+        "key": SKYWAY_API_KEY,
+        "room": "live-drawing",
+        "reliable": true,
+        "video": false,
+        "audio": false,
+        "turn": true
+      });
+
+      /* お絵かき系のオブジェクト */
+      let canvas = document.getElementById("canvas");
+      let context = canvas.getContext('2d');
+      let pcanvas = document.getElementById("pencilStyleCanvas");
+      let pctx = pcanvas.getContext('2d');
+      let drawFlag = false;
+      let pen = {"draw": "source-over", "width": 10, "color": "black"};
+      let point = {"x": 0, "y": 0, "bx": 0, "by": 0};
+      let canvasInitFlag = false;
+
+      multiparty.on("open", (myid)=>{
+        //
+        myPeer.id = myid;
+        peers[myPeer.id] = myPeer;
+
+      }).on("dc_open", (peerid)=>{
+        /* データ通信チャネル */
+        if(peers[peerid] === undefined){
+          peers[peerid] = {};
+        }
+        if(!canvasInitFlag){
+          multiparty.send(JSON.stringify({"type": "paint", "ope": "requestCanvasData"}));
+        }
+        
+      }).on("message", (msg)=>{
+        /* メッセージ受信時 */
+
+        let msgObj = JSON.parse(msg.data);
+        switch(msgObj.type){
+          case "paint":
+            switch(msgObj.ope){
+              case "drawLine":
+                drawLine(msgObj.pen, msgObj.point);
+                break;
+              case "drawDot":
+                drawLine(msgObj.pen, msgObj.x, msgObj.y);
+                break;
+              case "clearCanvas":
+                clearCanvas();
+                break;
+              case "requestCanvasData":
+                multiparty.send(JSON.stringify({
+                  "type": "paint", 
+                  "ope": "updateCanvasData", 
+                  "canvas": canvas.toDataURL()
+                }));
+                break;
+              case "updateCanvasData":
+                if(!canvasInitFlag){
+                  let defaultImg = document.getElementById("defaultImg");
+                  defaultImg.src = msgObj.canvas;
+                  setTimeout(()=>{
+                    context.drawImage(defaultImg, 0, 0);
+                    canvasInitFlag = true;
+                    console.log("init canvas");
+                  }, 100);
+                }
+                break;
+            }
+            break;
+        }
+
+      }).on("error", (error)=>{
+        console.error("err:", error);
+      });
+
+      canvas.addEventListener("mousemove", (e)=>{
+        if(drawFlag){
+          
+          // マウス位置の取得(canvas内の相対座標)
+          let rect = e.target.getBoundingClientRect();
+          point.x = e.clientX - rect.left;
+          point.y = e.clientY - rect.top;
+
+          // 線の描画
+          drawLine(pen, point);
+          multiparty.send(JSON.stringify({"type": "paint", "ope": "drawLine", "pen": pen, "point": point}));
+
+          // 位置履歴の更新
+          point.bx = point.x;
+          point.by = point.y;
+        }
+      });
+
+      canvas.addEventListener("mousedown", (e)=>{
+        // 位置の初期化
+        let rect = e.target.getBoundingClientRect();
+        point.bx = e.clientX - rect.left;
+        point.by = e.clientY - rect.top;
+        drawFlag = true;
+      });
+
+      canvas.addEventListener("mouseup", (e)=>{
+        drawFlag = false;
+        // 動かさずにマウスを離したとき
+        if((point.bx !== point.x) && (point.by !== point.y)){
+          // マウス位置の取得(canvas内の相対座標)
+          let rect = e.target.getBoundingClientRect();
+          let x = e.clientX - rect.left;
+          let y = e.clientY - rect.top;
+
+          // 点の描画
+          drawDot(pen, x, y);
+          multiparty.send(JSON.stringify({"type": "paint", "ope": "drawDot", "pen": pen, "x": x, "y": y}));
+        }
+      });
+
+      $("#clearCanvasBtn").on("click", ()=>{
+        clearCanvas();
+        multiparty.send(JSON.stringify({"type": "paint", "ope": "clearCanvas"}));
+      });
+
+      $("#pencilBtn").on("click", ()=>{
+        // 鉛筆モード
+        pen.draw = "source-over";
+      });
+
+      $("#eraserBtn").on("click", ()=>{
+        // 消しゴムモード
+        pen.draw = "destination-out";
+      });
+
+      $("#colorPalette").on("change", ()=>{
+        // 色の変更
+        pen.color = $("#colorPalette").val();
+        updatePencilStyleCanvas();
+      });
+
+      $("#thicknessRanger").on("input", ()=>{
+        // 太さの変更
+        pen.width = $("#thicknessRanger").val();
+        $("#thicknessMeter").text(pen.width);
+        updatePencilStyleCanvas();
+      });
+
+      function drawLine(pen, point){
+        // 線を引く
+        context.globalCompositeOperation = pen.draw;  // 鉛筆か消しゴムか
+        context.lineWidth = pen.width;   // 線の太さ
+        context.strokeStyle = pen.color;  // 線の色
+        context.lineCap = "round";  // 線の終端
+        context.beginPath();
+        context.moveTo(point.bx, point.by);
+        context.lineTo(point.x, point.y);
+        context.stroke();
+        context.closePath();
+      }
+
+      function drawDot(pen, x, y){
+        // 点を打つ
+        context.globalCompositeOperation = pen.draw;  // 鉛筆か消しゴムか
+        context.fillStyle = pen.color;  // 色
+        context.beginPath();
+        context.arc(x, y, pen.width/2, 0, Math.PI*2, false);
+        context.fill();
+        
+      }
+
+      function clearCanvas(){
+        // キャンバスをクリア
+        context.clearRect(0, 0, canvas.width, canvas.height);
+      }
+
+      function updatePencilStyleCanvas(){
+        // 鉛筆のスタイル見本
+        const thickness = pen.width;
+        pctx.clearRect(0, 0, pcanvas.width, pcanvas.height);
+        pctx.fillStyle = pen.color;
+        pctx.beginPath();
+        pctx.arc(pcanvas.width/2, pcanvas.height/2, thickness/2, 0, Math.PI*2, false);
+        pctx.fill();
+      }
+
+
+
+      updatePencilStyleCanvas();
+      multiparty.start();
+
+    });
+  </script>
+</head>
+<body>
+
+  <h1>live-drawing</h1>
+  <a target="_blank" href="paint.html">new window</a>
+  <div>
+    <canvas id="canvas" width="800" height="500" style="border: 1px solid black;"></canvas>
+    <img id="defaultImg" width="800" height="500" style="display: none;">
+  </div>
+  <div id="canvas-control">
+    <button id="clearCanvasBtn">clear</button>
+    <button id="pencilBtn">pencil</button>
+    <button id="eraserBtn">eraser</button>
+    <input type="color" id="colorPalette">
+    <label>size<input type="range" id="thicknessRanger" min="1" max="30" value="10"></label>
+    <span id="thicknessMeter">10</span>
+    <canvas id="pencilStyleCanvas" width="30" height="30"></canvas>
+  </div>
+
+</body>
+</html>
