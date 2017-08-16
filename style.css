@@ -1,0 +1,19 @@
+body{
+  user-select: none;
+}
+
+.controller-icon{
+  width: 25px;
+  height: 25px;
+}
+
+#canvasArea{
+  padding: 15px;
+}
+
+#canvas{
+  cursor: crosshair;
+  border: 1px solid lightgray;
+
+}
+
