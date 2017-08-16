@@ -22,39 +22,51 @@
   <!--
   <script src="https://cdnjs.cloudflare.com/ajax/libs/jquery/3.2.1/jquery.min.js"></script>
   -->
+  <link rel="stylesheet" href="style.css">
   <script src="https://skyway.io/dist/0.3/peer.min.js"></script>
   <script src="https://skyway.io/dist/multiparty.min.js"></script>
   <script src="app.js"></script>
 
 </head>
 <body>
-  <h1>line-drawing <a target="_blank" href="index.html">newWindow</a></h1>
+  <h1><a target="_blank" href="index.html">live-drawing</a></h1>
 
-  <div id="canvas-control">
-    
-    <p>
-      ペンの種類: 
-      <button id="pencilBtn">鉛筆</button>
-      <button id="eraserBtn">消しゴム</button>
-      <button id="colorPickerBtn">スポイト</button>
-    </p>
-    <p>
-      スタイル: 
-      <input type="color" id="colorPalette">
-      <label><input type="range" id="thicknessRanger" min="1" max="30" value="10"></label>
-      <span id="thicknessMeter">10</span>
-      <canvas id="pencilStyleCanvas" width="30" height="30"></canvas>
-    </p>
-    <p>
-      <button id="clearCanvasBtn">クリア</button>
-      <a id="downloadLink">Download</a>
-    </p>
-  </div>
-  
-  <div>
-      <canvas id="canvas" style="border: 1px solid black;"></canvas>
+  <div class="container">
+
+    <div id="canvas-control">
+      <span class="btn-group" role="group" aria-label="ペンの種類">
+        <button type="button" class="btn btn-default pen-btn active" id="pencilBtn" title="鉛筆"><img class="controller-icon" src="icons/pencil.svg"></button>
+        <button type="button" class="btn btn-default pen-btn" id="eraserBtn" title="消しゴム"><img class="controller-icon" src="icons/eraser.svg"></button>
+        <button type="button" class="btn btn-default pen-btn" id="colorPickerBtn" title="カラーピッカー"><img class="controller-icon" src="icons/color-picker.svg"></button>
+      </span>
+
+      <span class="btn-group" role="group" aria-label="操作">
+        <button type="button" class="btn btn-default" id="clearCanvasBtn" title="キャンバスのクリア"><img class="controller-icon" src="icons/new-paper.svg"></button>
+        <a class="btn btn-default" id="downloadLink" title="ダウンロード"><img class="controller-icon" src="icons/download.svg"></a>
+      </span>
+
+      <span class="form-inline">
+        <span class="form-group">
+          <input type="color" id="colorPalette" class="form-control" title="色の選択" style="width: 45px;">
+          <input type="range" id="thicknessRanger" class="form-control" title="ペンの太さ" min="1" max="30" value="10" style="width: 90px;">
+        </span>
+        <span class="form-group">
+          <canvas id="pencilStyleCanvas" width="30" height="30"></canvas>
+          <span id="thicknessMeter">10</span>
+        </span>
+      </span>
+
     </div>
 
+    
+    <div id="canvasArea">
+      <canvas id="canvas"></canvas>
+    </div>
+  </div>
+
+  <div>
+      <div>Icons made by <a href="http://www.freepik.com" title="Freepik">Freepik</a> from <a href="https://www.flaticon.com/" title="Flaticon">www.flaticon.com</a> is licensed by <a href="http://creativecommons.org/licenses/by/3.0/" title="Creative Commons BY 3.0" target="_blank">CC 3.0 BY</a></div>
+  </div>
 
 
 </body>

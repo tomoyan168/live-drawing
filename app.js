@@ -1,7 +1,7 @@
 /**********
 * お絵かきシステム by kimtm 2017 MIT License
 */
-{
+//{
 "use strict";
 
 
@@ -76,7 +76,8 @@ window.addEventListener("DOMContentLoaded", ()=>{
     // 自分をピアリストに保存
     myPeer.id = myid;
     peerList[myid] = myPeer;
-
+    console.log("サーバと接続しました");
+    multiparty.listAllPeers(function(lists){console.log("接続中:", lists);});
 
   }).on("dc_open", (peerid)=>{
     /* データ通信チャネルが利用可能になったとき */
@@ -97,13 +98,14 @@ window.addEventListener("DOMContentLoaded", ()=>{
 
     // メッセージ本体をパース
     let msgObj = JSON.parse(msg.data);
-
+    console.log(msgObj);
     // メッセージのタイプによって分岐
     switch(msgObj.type){
       
       // お絵かきのコマンドの場合
       case "paint":
         // {"type": "paint", "ope": "drawLine", "pen": pen, "point": point}
+        
 
         // さらに操作によって分岐
         switch(msgObj.ope){
@@ -268,6 +270,18 @@ window.addEventListener("DOMContentLoaded", ()=>{
     this.download = "image";
   }, false);
 
+  /* コントロールボタン */
+  let penBtns = document.getElementsByClassName("pen-btn");
+  for(let elm of penBtns){
+    elm.addEventListener("click", function(){
+      let clickedElm = this;
+      for(let elme of document.getElementsByClassName("pen-btn active")){
+        elme.classList.remove("active");
+      }
+      clickedElm.classList.add("active");
+    }, false);
+  }
+
   /* 線を引く */
   function drawLine(pen, point){  
     setColor();
@@ -287,6 +301,12 @@ window.addEventListener("DOMContentLoaded", ()=>{
     ctx.arc(x, y, pen.width/2, 0, Math.PI*2, false);
     ctx.fill();
     
+  }
+
+  /* 塗りつぶし */
+  function fill(pen, x, y){
+    let buffer = canvas.imageData.data;
+    // あとで実装
   }
 
   /* キャンバスをクリア */
@@ -345,4 +365,4 @@ window.addEventListener("DOMContentLoaded", ()=>{
 
 
 
-}
+//}
