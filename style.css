@@ -1,3 +1,123 @@
+@charset "utf-8";
+
+
+
+/**
+ * チャットのスタイル
+ */
+
+/* チャットエリア全体 */
+.log-area{
+  border: 1px solid black;
+  height: 750px;
+  overflow: auto;
+}
+
+/* 1つのチャットメッセージ全体 */
+.chat-message-box{
+  width: 100%;
+  height: auto;
+  overflow: hidden;
+  margin-bottom: 20px;
+}
+
+
+/* 1つのチャットメッセージのアイコン全体 */
+.chat-user-icon{
+  float: left;
+  margin-right: -120px;
+}
+
+/* 1つのチャットメッセージのアイコン(svg) */
+.avatar{
+  width: 50px;
+  height: 50px;
+}
+
+/* 1つのチャットメッセージのアイコンの名前 */
+.user-name.chat{
+  width: 55px;
+  text-align: center;
+  word-wrap: break-word;
+}
+
+
+/* 1つのチャットメッセージのメッセージ全体 */
+.chat-message-area{
+  width: 100%;
+  float: right;
+}
+
+/* 1つのチャットメッセージのメッセージの内容 */
+.chat-message-content{
+  display: inline-block;
+  padding: 15px 20px;
+  margin: 0px 70px;
+  border-radius: 10px;
+  position: relative;
+  background-color: #D9F0FF;
+}
+
+/* 1つのチャットメッセージのメッセージの吹き出し */
+.chat-message-content:after {
+  content: "";
+  position: absolute;
+  top: 50%; left: -10px;
+  margin-top: -10px;
+  display: block;
+  width: 0px;
+  height: 0px;
+  border-style: solid;
+  border-width: 10px 10px 10px 0;
+  border-color: transparent #D9F0FF transparent transparent;
+}
+
+
+
+/* 自分のチャットメッセージの吹き出し */
+.chat-message-content.me{
+  background-color: lightgray;
+}
+.chat-message-content.me:after {
+  border-color: transparent lightgray transparent transparent;
+}
+
+
+/**
+  ビデオのスタイル
+*/
+
+#streams{
+  padding: 15px;
+}
+
+/* トークビュー */
+/*
+.talkView{
+  float: left;
+  margin: 15px;
+}
+.talkView:after{
+  clear: both;
+}
+*/
+
+/* 1つのビデオ */
+.talk-video{
+  width: 100%;
+}
+
+/* 1つのビデオの名前 */
+/*
+.user-name.talk{
+  text-align: center;
+  word-wrap: break-word;
+}
+*/
+
+/**
+  お絵描きのスタイル
+*/
 body{
   user-select: none;
 }
@@ -17,3 +137,7 @@ body{
 
 }
 
+#importImageLabel{
+  padding: 0px;
+  margin: 0px;
+}
