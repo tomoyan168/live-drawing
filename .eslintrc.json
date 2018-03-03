@@ -1,0 +1,70 @@
+{
+    "env": {
+        "browser": true,
+        "es6": true,
+        "jquery": true
+    },
+    "globals": {},
+    "parserOptions": {
+        "sourceType": "module"
+    },
+    "extends": "eslint:recommended",
+    "rules": {
+        "semi": [
+            "error",
+            "always"
+        ],
+        "semi-style": [
+            "error",
+            "last"
+        ],
+        "no-var": "error",
+        "indent": [
+            "warn",
+            2
+        ],
+        "linebreak-style": [
+            "warn",
+            "unix"
+        ],
+        "quotes": [
+            "warn",
+            "single"
+        ],
+        "no-unused-vars": "warn",
+        "arrow-spacing": "warn",
+        "prefer-template": "warn",
+        "prefer-const": "warn",
+        "semi-spacing": [
+            "warn",
+            {
+                "before": false,
+                "after": true
+            }
+        ],
+        "space-in-parens": [
+            "warn",
+            "never"
+        ],
+        "block-spacing": [
+            "warn",
+            "always"
+        ],
+        "spaced-comment": [
+            "warn",
+            "always",
+            {
+                "exceptions": [
+                    "-",
+                    "+",
+                    "#"
+                ]
+            }
+        ],
+        "space-before-blocks": [
+            "warn",
+            "always"
+        ],
+        "no-console": "off"
+    }
+}
