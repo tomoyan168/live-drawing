@@ -17,15 +17,15 @@
   </script>
 
   <!-- ライブラリ -->
-  <script src="https://cdnjs.cloudflare.com/ajax/libs/jquery/3.2.1/jquery.min.js"></script>
-  <script src="https://skyway.io/dist/0.3/peer.min.js"></script>
-  <script src="https://skyway.io/dist/multiparty.min.js"></script>
+  <script src="https://ajax.googleapis.com/ajax/libs/jquery/3.3.1/jquery.min.js"></script>
+  <script src="https://cdn.webrtc.ecl.ntt.com/skyway-1.1.6.js"></script>
 
   <!-- Bootstrap -->
   <link rel="stylesheet" href="https://maxcdn.bootstrapcdn.com/bootstrap/3.3.7/css/bootstrap.min.css">
   <script src="https://maxcdn.bootstrapcdn.com/bootstrap/3.3.7/js/bootstrap.min.js"></script>
 
   <link rel="stylesheet" href="style.css">
+  <script src="key.js"></script>
   <script src="app.js"></script>
 </head>
 
@@ -49,12 +49,24 @@
       <div class="collapse navbar-collapse" id="bs-example-navbar-collapse-1">
         <ul class="nav navbar-nav navbar-right">
           <li class="dropdown">
-            <a href="" class="dropdown-toggle" data-toggle="dropdown" role="button" aria-haspopup="true" aria-expanded="false"><span class="glyphicon glyphicon-cog" aria-hidden="true"></span> 設定<span class="caret"></span></a>
+            <a href="" class="dropdown-toggle" data-toggle="dropdown" role="button" aria-haspopup="true" aria-expanded="false">
+              <span class="glyphicon glyphicon-cog" aria-hidden="true"></span> 設定
+              <span class="caret"></span>
+            </a>
             <ul class="dropdown-menu">
-              <li><a href="" data-toggle="modal" data-target="#rename-modal"><span class="glyphicon glyphicon-user"></span> 名前の変更</a></li>
-              <li><a href="" data-toggle="modal" data-target="#lisense-modal"><span class="glyphicon glyphicon-info-sign"></span> ライセンス</a></li>
+              <li>
+                <a href="" data-toggle="modal" data-target="#rename-modal">
+                  <span class="glyphicon glyphicon-user"></span> 名前の変更</a>
+              </li>
+              <li>
+                <a href="" data-toggle="modal" data-target="#lisense-modal">
+                  <span class="glyphicon glyphicon-info-sign"></span> ライセンス</a>
+              </li>
               <li role="separator" class="divider"></li>
-              <li><a id="logoutBtn" href=""><span class="glyphicon glyphicon-log-out"></span> ログアウト</a></li>
+              <li>
+                <a id="logoutBtn" href="">
+                  <span class="glyphicon glyphicon-log-out"></span> ログアウト</a>
+              </li>
             </ul>
           </li>
         </ul>
@@ -82,16 +94,33 @@
         <!-- 操作ボタン -->
         <div id="canvas-control">
           <span class="btn-group" role="group" aria-label="ペンの種類">
-            <button type="button" class="btn btn-default pen-btn active" id="pencilBtn" title="鉛筆"><img class="controller-icon" src="icons/pencil.svg"></button>
-            <button type="button" class="btn btn-default pen-btn" id="eraserBtn" title="消しゴム"><img class="controller-icon" src="icons/eraser.svg"></button>
-            <button type="button" class="btn btn-default pen-btn" id="colorPickerBtn" title="カラーピッカー"><img class="controller-icon" src="icons/color-picker.svg"></button>
-            <button type="button" class="btn btn-default pen-btn" id="fillBtn" title="塗りつぶし" disabled="disabled"><img class="controller-icon" src="icons/color-bucket.svg"></button>
+            <button type="button" class="btn btn-default pen-btn active" id="pencilBtn" title="鉛筆">
+              <img class="controller-icon" src="icons/pencil.svg">
+            </button>
+            <button type="button" class="btn btn-default pen-btn" id="eraserBtn" title="消しゴム">
+              <img class="controller-icon" src="icons/eraser.svg">
+            </button>
+            <button type="button" class="btn btn-default pen-btn" id="colorPickerBtn" title="カラーピッカー">
+              <img class="controller-icon" src="icons/color-picker.svg">
+            </button>
+            <button type="button" class="btn btn-default pen-btn" id="fillBtn" title="塗りつぶし" disabled="disabled">
+              <img class="controller-icon" src="icons/color-bucket.svg">
+            </button>
           </span>
 
           <span class="btn-group" role="group" aria-label="操作">
-            <button type="button" class="btn btn-default" id="clearCanvasBtn" title="キャンバスのクリア"><img class="controller-icon" src="icons/new-paper.svg"></button>
-            <a class="btn btn-default" id="downloadLink" title="ダウンロード"><img class="controller-icon" src="icons/download.svg"></a>
-            <label id="importImageLabel"><a class="btn btn-default" id="importImageBtn" title="ファイルからキャンバスを生成"><img class="controller-icon" src="icons/upload.svg"></a><input type="file" id="importImage" accept="image/*" title="ファイルからキャンバスを生成" style="display: none;"></label>
+            <button type="button" class="btn btn-default" id="clearCanvasBtn" title="キャンバスのクリア">
+              <img class="controller-icon" src="icons/new-paper.svg">
+            </button>
+            <a class="btn btn-default" id="downloadLink" title="ダウンロード">
+              <img class="controller-icon" src="icons/download.svg">
+            </a>
+            <label id="importImageLabel">
+              <a class="btn btn-default" id="importImageBtn" title="ファイルからキャンバスを生成">
+                <img class="controller-icon" src="icons/upload.svg">
+              </a>
+              <input type="file" id="importImage" accept="image/*" title="ファイルからキャンバスを生成" style="display: none;">
+            </label>
           </span>
 
           <span class="form-inline">
@@ -99,10 +128,10 @@
               <input type="color" id="colorPalette" class="form-control" title="色の選択" style="width: 45px;">
               <input type="range" id="thicknessRanger" class="form-control" title="ペンの太さ" min="1" max="30" value="10" style="width: 90px;">
             </span>
-          <span class="form-group">
+            <span class="form-group">
               <canvas id="pencilStyleCanvas" width="30" height="30"></canvas>
               <span id="thicknessMeter">10</span>
-          </span>
+            </span>
           </span>
 
         </div>
@@ -125,9 +154,9 @@
           <div class="input-group">
             <input type="text" id="chatBox" class="form-control" placeholder="Type your chat message">
             <span class="input-group-btn">
-                <button type="button" id="sendChatBtn" class="btn btn-primary" aria-label="Left Align">
-                  <span class="glyphicon glyphicon-send" aria-hidden="true"></span>
-            </button>
+              <button type="button" id="sendChatBtn" class="btn btn-primary" aria-label="Left Align">
+                <span class="glyphicon glyphicon-send" aria-hidden="true"></span>
+              </button>
             </span>
           </div>
         </form>
@@ -153,7 +182,9 @@
     <div class="modal-dialog" role="document">
       <div class="modal-content">
         <div class="modal-header">
-          <button type="button" class="close" data-dismiss="modal" aria-label="Close"><span aria-hidden="true">&times;</span></button>
+          <button type="button" class="close" data-dismiss="modal" aria-label="Close">
+            <span aria-hidden="true">&times;</span>
+          </button>
           <h4 class="modal-title">名前の変更</h4>
         </div>
         <div class="modal-body">
@@ -178,21 +209,37 @@
     <div class="modal-dialog" role="document">
       <div class="modal-content">
         <div class="modal-header">
-          <button type="button" class="close" data-dismiss="modal" aria-label="Close"><span aria-hidden="true">&times;</span></button>
+          <button type="button" class="close" data-dismiss="modal" aria-label="Close">
+            <span aria-hidden="true">&times;</span>
+          </button>
           <h4 class="modal-title">ライセンス</h4>
         </div>
         <div class="modal-body">
           <p>
             <center>
               <h3>Live Drawing</h3>
-              <h4>1.2.1</h4>
-              <h4>&copy 2017 kimtm</h4>
+              <h4>1.3.0</h4>
+              <h4>&copy 2018 kimtm</h4>
             </center>
             <h4>使用ライブラリ</h4>
             <ul>
-              <li><a target="_blank" href="https://github.com/nttcom/SkyWay-MultiParty">SkyWay-MultiParty</a> | &copy 2015-2017
-                NTT Communications Corporation | <a target="_blank" href="https://github.com/nttcom/SkyWay-MultiParty/blob/master/LICENSE">MIT LICENSE</a></li>
-              <li><a target="_blank" href="https://www.flaticon.com/">www.flaticon.com</a> | <a target="_blank" href="http://www.freepik.com">Freepik</a>                | <a target="_blank" href="http://creativecommons.org/licenses/by/3.0/">CC 3.0 BY</a></li>
+              <li>
+                <a target="_blank" href="https://webrtc.ecl.ntt.com/">Enterprise Cloud SkyWay</a> | &copy 2015-2018 NTT Communications Corporation |
+                <a target="_blank" href="https://github.com/skyway/skyway-js-sdk/blob/master/LICENSE">MIT LICENSE</a>
+              </li>
+              <li>
+                <a target="_blank" href="https://www.flaticon.com/">www.flaticon.com</a> |
+                <a target="_blank" href="http://www.freepik.com">Freepik</a> |
+                <a target="_blank" href="http://creativecommons.org/licenses/by/3.0/">CC 3.0 BY</a>
+              </li>
+              <li>
+                <a target="_blank" href="https://getbootstrap.com/">Bootstrap</a> | &copy 2011-2016 Twitter, Inc. |
+                <a target="_blank" href="https://github.com/twbs/bootstrap/blob/master/LICENSE">MIT LICENSE</a>
+              </li>
+              <li>
+                <a target="_blank" href="https://jquery.com/">jQuery</a> | &copy The jQuery Foundation |
+                <a target="_blank" href="https://tldrlegal.com/license/mit-license">MIT LICENSE</a>
+              </li>
             </ul>
           </p>
         </div>

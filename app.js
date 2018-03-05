@@ -4,12 +4,12 @@
 
 
 
-/*******************************************
+/** *****************************************
 *  各種設定
 ********************************************/
 
-// SkyWayのAPIkey
-const SKYWAY_API_KEY = "b4b40ddc-34ef-4621-aed9-2d53c3e8f777";
+// ルームの名前
+const ROOM_NAME = 'live-paint';
 
 // キャンバスの大きさ
 const CANVAS_WIDTH = 850;
@@ -19,14 +19,15 @@ const CANVAS_HEIGHT = 750;
 const BACKGROUND_TRANSPARENCE = false;
 
 // キャンバスの背景色(BACKGROUND_TRANSPARENCEが優先される)
-const BACKGROUND_COLOR = "#ffffff";
+const BACKGROUND_COLOR = '#ffffff';
 
 
-/*******************************************
+/** *****************************************
 *  共有オブジェクト
 ********************************************/
-let multiparty;
-let myPeer = { "id": "", "name": "名無し" };
+let SkyWayPeer = null;
+let room = null;
+let myPeer = { 'id': null, 'name': '名無し', 'stream': null };
 let peers = {};
 
 // メインのキャンバス(, コンテキスト)
@@ -41,38 +42,35 @@ let pctx;
 let drawFlag = false;
 
 // ペン
-let pen = { "mode": "pencil", "width": 10, "color": "#000000" };
+const pen = { 'mode': 'pencil', 'width': 10, 'color': '#000000' };
 
 // ペンの位置
-let point = { "x": 0, "y": 0, "bx": 0, "by": 0 };
+const point = { 'x': 0, 'y': 0, 'bx': 0, 'by': 0 };
 
 // キャンバスが初期化されているかどうか
 let canvasInitFlag = false;
 
 
 
-/*******************************************
+/** *****************************************
 *  メイン制御
 ********************************************/
-window.addEventListener("load", () => {
-  "use strict"
+window.addEventListener('load', () => {
+  'use strict';
 
   /* SkyWayシグナリングサーバと接続 */
-  multiparty = new MultiParty({
-    "key": SKYWAY_API_KEY,
-    "room": "test",
-    "reliable": true,
-    "audio": true,
-    "turn": true
+  SkyWayPeer = new Peer({
+    key: window.SKYWAY_API_KEY,
+    debug: 1
   });
 
   /* キャンバスオブジェクトの取得 */
   // メインのキャンバス
-  canvas = document.getElementById("canvas");
+  canvas = document.getElementById('canvas');
   ctx = canvas.getContext('2d');
 
   // ペンのプレビュー用
-  pcanvas = document.getElementById("pencilStyleCanvas");
+  pcanvas = document.getElementById('pencilStyleCanvas');
   pctx = pcanvas.getContext('2d');
 
   /* キャンバスの大きさを指定 */
@@ -81,197 +79,214 @@ window.addEventListener("load", () => {
 
 
   /* 接続が開いた場合 */
-  multiparty.on("open", (myid) => {
+  SkyWayPeer.on('open', myid => {
+    // ルームに参加
+    room = SkyWayPeer.joinRoom(ROOM_NAME, {
+      mode: 'mesh',
+      stream: myPeer.stream
+    });
+
     // 自分のIDと名前を保存
     myPeer.id = myid;
     myPeer.name = myid;
     peers[myPeer.id] = myPeer;
 
-  }).on("my_ms", (ms) => {
-    /* 自分のビデオを受け取ったとき */
+    // ビデオと音声を取得
+    navigator.mediaDevices.getUserMedia({
+      video: true,
+      audio: true
+    }).then(stream => {
+      // ビデオを追加
+      myPeer.stream = stream;
+      appendVideo(myPeer.id, stream);
+      if (room) {
+        room.replaceStream(stream);
+      }
+    }).catch(error => {
+      // 取得失敗
+      console.error('mediaDevice.getUserMedia() error:', error);
+      alert('カメラ/マイク取得失敗');
+    });
 
-    // ビデオを追加
-    appendVideo(myPeer.id, ms);
+    /* ルームが生成されたとき */
+    room.on('open', () => {
 
-  }).on("peer_ms", (ms) => {
-    /* 別のピアのビデオを受け取ったとき */
+      // データチャネルを作成 
+      // キャンバスが初期化されていない場合は初期化のためのキャンバスデータを送信してもらう
+      if (!canvasInitFlag) {
+        room.send(JSON.stringify({ 'type': 'paint', 'ope': 'requestCanvasData' }));
+      }
+      // 名前を送信
+      rename();
 
-    // ピアリストに追加
-    if (peers[ms.id] === undefined) { peers[ms.id] = {}; }
+      // ストリームを送信
+      room.replaceStream(myPeer.stream);
 
-    // 追加したピアのエイリアス
-    let p = peers[ms.id];
-    p.id = ms.id;
-    p.streamOpen = true;
-    p.stream = ms.src;
+      /* ピアが参加したとき */
+      room.on('peerJoin', peerid => {
+        // ピアリストに追加
+        peers[peerid] = {
+          id: peerid,
+          name: peerid
+        };
+      });
 
-    // ビデオを追加
-    appendVideo(p.id, ms);
 
+      /* 別のピアのビデオを受け取ったとき */
+      room.on('stream', stream => {
+        // ビデオを追加
+        appendVideo(stream.peerId, stream);
+      });
 
-
-  }).on("dc_open", (peerid) => {
-    /* チャット用のチャネル */
-
-    // ピアリストに追加
-    if (peers[peerid] === undefined) { peers[peerid] = {}; }
-    peers[peerid].chatOpen = true;
-
-    // キャンバスが初期化されていない場合は初期化のためのキャンバスデータを送信してもらう
-    if (!canvasInitFlag) {
-      multiparty.send(JSON.stringify({ "type": "paint", "ope": "requestCanvasData" }));
-    }
-
-    // 名前を送信
-    rename();
-
-  }).on("message", (msg) => {
-    /* メッセージ受信時 */
-
-    let msgObj = JSON.parse(msg.data);
-    switch (msgObj.type) {
-      // 名前の変更
-      case "rename":
-        peers[msg.id].name = msgObj.name;
-        renameGUI(msg.id);
-        break;
-
-      // チャット
-      case "chat":
-        // 名前の更新があった場合は，名前を更新
-        if (peers[msg.id].name !== msgObj.name) {
-          peers[msg.id].name = msgObj.name;
-          renameGUI(msg.id);
+      /* メッセージ受信時 */
+      room.on('data', msg => {
+        const msgObj = JSON.parse(msg.data);
+        if (peers[msg.src] === undefined) {
+          // ピアリストに追加
+          peers[msg.src] = {
+            id: msg.src,
+            name: msg.src
+          };
         }
-
-        // メッセージを追加
-        appendMessage(msg.id, msgObj.message);
-
-        break;
-
-      // お絵かきのコマンドの場合
-      case "paint":
-
-        // さらに操作によって分岐
-        switch (msgObj.ope) {
-          // 線を引く
-          case "drawLine":
-            // {"type": "paint", "ope": "drawLine", "pen": pen, "point": point}
-            drawLine(msgObj.pen, msgObj.point);
+        switch (msgObj.type) {
+          // 名前の変更
+          case 'rename':
+            peers[msg.src].name = msgObj.name;
+            renameGUI(msg.src);
             break;
 
-          //点を打つ
-          case "drawDot":
-            // {"type": "paint", "ope": "drawDot", "pen": pen, "x": x, "y": y}
-            drawLine(msgObj.pen, msgObj.x, msgObj.y);
+          // チャット
+          case 'chat':
+            // 名前の更新があった場合は，名前を更新
+            if (peers[msg.src].name !== msgObj.name) {
+              peers[msg.src].name = msgObj.name;
+              renameGUI(msg.src);
+            }
+
+            // メッセージを追加
+            appendMessage(msg.src, msgObj.message);
+
             break;
 
-          // キャンバスをクリアする
-          case "clearCanvas":
-            clearCanvas();
-            break;
+          // お絵かきのコマンドの場合
+          case 'paint':
 
-          // キャンバスのデータを要求されたので，送る
-          case "requestCanvasData":
-            multiparty.send(JSON.stringify({
-              "type": "paint",
-              "ope": "updateCanvasData",
-              "canvas": canvas.toDataURL()
-            }));
-            break;
+            // さらに操作によって分岐
+            switch (msgObj.ope) {
+              // 線を引く
+              case 'drawLine':
+                // {"type": "paint", "ope": "drawLine", "pen": pen, "point": point}
+                drawLine(msgObj.pen, msgObj.point);
+                break;
 
-          // キャンバスのデータを受信
-          case "importCanvasFromImage":
-            canvasInitFlag = false;
-          case "updateCanvasData":
-            // まだキャンバスが初期化されていない場合
-            if (!canvasInitFlag) {
-              // イメージオブジェクトの生成
-              let defaultImg = new Image(CANVAS_WIDTH, CANVAS_HEIGHT);
-              defaultImg.src = msgObj.canvas;
-              setTimeout(() => {
-                ctx.drawImage(defaultImg, 0, 0);
-                canvasInitFlag = true;
-                console.log("inited canvas");
-              }, 50);
+              // 点を打つ
+              case 'drawDot':
+                // {"type": "paint", "ope": "drawDot", "pen": pen, "x": x, "y": y}
+                drawLine(msgObj.pen, msgObj.x, msgObj.y);
+                break;
+
+              // キャンバスをクリアする
+              case 'clearCanvas':
+                clearCanvas();
+                break;
+
+              // キャンバスのデータを要求されたので，送る
+              case 'requestCanvasData':
+                room.send(JSON.stringify({
+                  'type': 'paint',
+                  'ope': 'updateCanvasData',
+                  'canvas': canvas.toDataURL()
+                }));
+                break;
+
+              // キャンバスのデータを受信
+              case 'importCanvasFromImage':
+                canvasInitFlag = false;
+              /* FALLTHROUGH */
+              case 'updateCanvasData': {
+                // まだキャンバスが初期化されていない場合
+                if (!canvasInitFlag) {
+                  // イメージオブジェクトの生成
+                  const defaultImg = new Image(CANVAS_WIDTH, CANVAS_HEIGHT);
+                  defaultImg.src = msgObj.canvas;
+                  setTimeout(() => {
+                    ctx.drawImage(defaultImg, 0, 0);
+                    canvasInitFlag = true;
+                    console.log('inited canvas');
+                  }, 50);
+                }
+                break;
+              }
             }
             break;
+          // お絵かきコマンドの場合終了
         }
-        break;
-      // お絵かきコマンドの場合終了
-    }
 
-  }).on("ms_close", (peer_id) => {
-    /* メディアチャネル切断時 */
-    
-    // ビデオを削除
-    $(".talkView." + peer_id).remove();
+      });
 
-  }).on("dc_close", (peerid) => {
-    /* データチャネル切断時 */
+      /* ピアが離脱したとき */
+      room.on('peerLeave', peerid => {
+        console.log(`${peerid}(${peers[peerid].name})が離脱`);
+        // ビデオを削除
+        $(`.talkView.${peerid}`).remove();
+        delete peers[peerid];
+      });
 
-    console.log(peerid + "(" + peers[peerid].name + ")が離脱");
 
-  }).on("error", (error) => {
-    /* エラー発生時 */
-    switch (error.type) {
-      case "browser-incompatible":
-        alert("WebRTC対応ブラウザでアクセスしてください");
-        break;
-      default:
-        switch (error.name) {
-          case "PermissionDeniedError":
-            alert("メディアアクセスを許可してください");
-            //https://developer.mozilla.org/ja/docs/Web/API/MediaDevices/getUserMedia
-            break;
-          default:
-            console.error(error);
-            alert("しばらく時間をおいて再度試してみてください．(別ウィンドウで開くとうまくいくかも)");
-        }
-    }
+
+
+    });
   });
+
+
+
+
+
+
+
+
 
   /* メッセージの送信 */
   function sendMsg() {
     // メッセージの内容を取得
-    const msg = $("#chatBox").val();
+    const msg = $('#chatBox').val();
 
     // メッセージが空の場合は送信しない
-    if (msg !== "") {
+    if (msg !== '') {
 
       // 送信
-      multiparty.send(JSON.stringify({
-        "id": myPeer.id,
-        "name": myPeer.name,
-        "type": "chat",
-        "message": msg,
-        "time": (new Date().getTime())
+      room.send(JSON.stringify({
+        'id': myPeer.id,
+        'name': myPeer.name,
+        'type': 'chat',
+        'message': msg,
+        'time': (new Date().getTime())
       }));
 
       // チャットエリアにメッセージを表示
       appendMessage(myPeer.id, msg);
 
       // メッセージボックスをクリア
-      $("#chatBox").val("");
+      $('#chatBox').val('');
     }
   }
-  $("#sendChatBtn").on("click", sendMsg);
-  $("#sendChatForm").on("submit", (ev) => {
+  $('#sendChatBtn').on('click', sendMsg);
+  $('#sendChatForm').on('submit', (ev) => {
     ev.preventDefault();
     sendMsg();
   });
 
 
-  /*******************************************
+  /** *****************************************
   *  お絵かき
   ********************************************/
 
   /* マウスを動かしたとき(描画する) */
-  canvas.addEventListener("mousemove", (e) => {
+  canvas.addEventListener('mousemove', (e) => {
     if (drawFlag) {
 
       // マウス位置の取得(canvas内の相対座標)
-      let rect = e.target.getBoundingClientRect();
+      const rect = e.target.getBoundingClientRect();
       point.x = e.clientX - rect.left;
       point.y = e.clientY - rect.top;
 
@@ -279,7 +294,7 @@ window.addEventListener("load", () => {
       drawLine(pen, point);
 
       // 描画を全員へ共有
-      multiparty.send(JSON.stringify({ "type": "paint", "ope": "drawLine", "pen": pen, "point": point }));
+      room.send(JSON.stringify({ 'type': 'paint', 'ope': 'drawLine', 'pen': pen, 'point': point }));
 
       // 位置履歴の更新
       point.bx = point.x;
@@ -287,117 +302,118 @@ window.addEventListener("load", () => {
     }
   });
 
-  canvas.addEventListener("mousedown", (e) => {
+  canvas.addEventListener('mousedown', (e) => {
     // クリック位置の取得
-    let rect = e.target.getBoundingClientRect();
-    let x = e.clientX - rect.left;
-    let y = e.clientY - rect.top;
+    const rect = e.target.getBoundingClientRect();
+    const x = e.clientX - rect.left;
+    const y = e.clientY - rect.top;
 
     switch (pen.mode) {
-      case "pencil":
-      case "eraser":
+      case 'pencil':
+      case 'eraser':
         drawFlag = true;
         // 位置の初期化
         point.bx = x;
         point.by = y;
         break;
-      case "color-picker":
+      case 'color-picker': {
         // ピクセルデータを取得
         const data = ctx.getImageData(x, y, 1, 1).data;
         // 16進表現に変換
-        pen.color = "#" + [data[0], data[1], data[2]].map(function (d) { return ("0" + d.toString(16)).slice(-2) }).join("");
+        pen.color = `#${[data[0], data[1], data[2]].map(function (d) { return ('0' + d.toString(16)).slice(-2); }).join('')}`;
         // 表示要素に反映
         updatePencilStyleCanvas();
-        document.getElementById("colorPalette").value = pen.color;
+        document.getElementById('colorPalette').value = pen.color;
         // 鉛筆に戻す
-        pen.mode = "pencil";
-        activateBtn(document.getElementById("pencilBtn"));
+        pen.mode = 'pencil';
+        activateBtn(document.getElementById('pencilBtn'));
         break;
+      }
     }
 
   });
 
-  canvas.addEventListener("mouseup", (e) => {
+  canvas.addEventListener('mouseup', (e) => {
     drawFlag = false;
     // 動かさずにマウスを離したとき
     if ((point.bx !== point.x) && (point.by !== point.y)) {
       // マウス位置の取得(canvas内の相対座標)
-      let rect = e.target.getBoundingClientRect();
-      let x = e.clientX - rect.left;
-      let y = e.clientY - rect.top;
+      const rect = e.target.getBoundingClientRect();
+      const x = e.clientX - rect.left;
+      const y = e.clientY - rect.top;
 
       // 点の描画
       drawDot(pen, x, y);
-      multiparty.send(JSON.stringify({ "type": "paint", "ope": "drawDot", "pen": pen, "x": x, "y": y }));
+      room.send(JSON.stringify({ 'type': 'paint', 'ope': 'drawDot', 'pen': pen, 'x': x, 'y': y }));
     }
   });
 
 
   /* キャンバスのクリア */
-  document.getElementById("clearCanvasBtn").addEventListener("click", function () {
+  document.getElementById('clearCanvasBtn').addEventListener('click', function () {
     clearCanvas();
-    multiparty.send(JSON.stringify({ "type": "paint", "ope": "clearCanvas" }));
+    room.send(JSON.stringify({ 'type': 'paint', 'ope': 'clearCanvas' }));
   });
 
   /* 鉛筆モード */
-  document.getElementById("pencilBtn").addEventListener("click", function () {
-    pen.mode = "pencil";
+  document.getElementById('pencilBtn').addEventListener('click', function () {
+    pen.mode = 'pencil';
   });
 
   /* 消しゴムモード */
-  document.getElementById("eraserBtn").addEventListener("click", function () {
-    pen.mode = "eraser";
+  document.getElementById('eraserBtn').addEventListener('click', function () {
+    pen.mode = 'eraser';
   });
 
   /* カラーピッカーモード */
-  document.getElementById("colorPickerBtn").addEventListener("click", function () {
-    pen.mode = "color-picker";
+  document.getElementById('colorPickerBtn').addEventListener('click', function () {
+    pen.mode = 'color-picker';
   });
 
   /* 塗りつぶしモード */
-  document.getElementById("fillBtn").addEventListener("click", function () {
-    pen.mode = "fillBucket";
+  document.getElementById('fillBtn').addEventListener('click', function () {
+    pen.mode = 'fillBucket';
   });
 
   /* 色の変更 */
-  document.getElementById("colorPalette").addEventListener("change", function () {
+  document.getElementById('colorPalette').addEventListener('change', function () {
     pen.color = this.value;
     updatePencilStyleCanvas();
   });
 
   /* 太さの変更 */
-  document.getElementById("thicknessRanger").addEventListener("input", function () {
+  document.getElementById('thicknessRanger').addEventListener('input', function () {
     pen.width = this.value;
-    document.getElementById("thicknessMeter").textContent = pen.width;
+    document.getElementById('thicknessMeter').textContent = pen.width;
     updatePencilStyleCanvas();
   });
 
   /* 画像のダウンロード */
-  document.getElementById("downloadLink").addEventListener("click", function (ev) {
+  document.getElementById('downloadLink').addEventListener('click', function (ev) {
     this.href = canvas.toDataURL();
-    this.download = "image";
+    this.download = 'image';
   }, false);
 
   /* ファイルからインポート */
-  document.getElementById("importImage").addEventListener("change", function (evt) {
-    let file = evt.target.files;
-    let reader = new FileReader();
+  document.getElementById('importImage').addEventListener('change', function (evt) {
+    const file = evt.target.files;
+    const reader = new FileReader();
 
-    //dataURL形式でファイルを読み込む
+    // dataURL形式でファイルを読み込む
     reader.readAsDataURL(file[0]);
 
-    //ファイルの読込が終了した時の処理
+    // ファイルの読込が終了した時の処理
     reader.onload = function () {
       // DataURLに変換
-      let imgData = reader.result;
-      let defaultImg = new Image(CANVAS_WIDTH, CANVAS_HEIGHT);
+      const imgData = reader.result;
+      const defaultImg = new Image(CANVAS_WIDTH, CANVAS_HEIGHT);
       defaultImg.src = imgData;
 
       let ix = 0;
       let iy = 0;
-      let insertPointInput = prompt("挿入する座標 x,y", "0,0");
+      const insertPointInput = prompt('挿入する座標 x,y', '0,0');
       if (insertPointInput) {
-        let insertPoint = insertPointInput.split(",");
+        const insertPoint = insertPointInput.split(',');
         if (insertPoint.length <= 2) {
           ix = parseInt(insertPoint[0]);
           iy = parseInt(insertPoint[1]);
@@ -409,19 +425,19 @@ window.addEventListener("load", () => {
       setTimeout(() => {
         ctx.drawImage(defaultImg, ix, iy);
         // 全員に送信
-        multiparty.send(JSON.stringify({
-          "type": "paint",
-          "ope": "importCanvasFromImage",
-          "canvas": canvas.toDataURL()
+        room.send(JSON.stringify({
+          'type': 'paint',
+          'ope': 'importCanvasFromImage',
+          'canvas': canvas.toDataURL()
         }));
       }, 50);
 
-    }
+    };
   }, false);
 
   /* ペン切り替えボタンのクリック状態 */
-  for (let elm of document.getElementsByClassName("pen-btn")) {
-    elm.addEventListener("click", function () {
+  for (const elm of document.getElementsByClassName('pen-btn')) {
+    elm.addEventListener('click', function () {
       activateBtn(this);
     }, false);
   }
@@ -430,7 +446,7 @@ window.addEventListener("load", () => {
   function drawLine(pen, point) {
     setColor(pen);
     ctx.lineWidth = pen.width;   // 線の太さ
-    ctx.lineCap = "round";  // 線の終端
+    ctx.lineCap = 'round';  // 線の終端
     ctx.beginPath();
     ctx.moveTo(point.bx, point.by);
     ctx.lineTo(point.x, point.y);
@@ -474,18 +490,18 @@ window.addEventListener("load", () => {
   /* 消しゴムか判断して色を指定 */
   function setColor(pen) {
     switch (pen.mode) {
-      case "pencil":
-        ctx.globalCompositeOperation = "source-over";
+      case 'pencil':
+        ctx.globalCompositeOperation = 'source-over';
         ctx.strokeStyle = pen.color;  // 色を指定
         break;
 
-      case "eraser":
+      case 'eraser':
         if (BACKGROUND_TRANSPARENCE) {
           // 透明に
-          ctx.globalCompositeOperation = "destination-out";
+          ctx.globalCompositeOperation = 'destination-out';
         } else {
           // 白で塗りつぶし
-          ctx.globalCompositeOperation = "source-over";
+          ctx.globalCompositeOperation = 'source-over';
           ctx.strokeStyle = BACKGROUND_COLOR;
         }
         break;
@@ -494,10 +510,10 @@ window.addEventListener("load", () => {
 
   /* 指定したボタンをアクティブにする */
   function activateBtn(target) {
-    for (let elm of document.getElementsByClassName("pen-btn active")) {
-      elm.classList.remove("active");
+    for (const elm of document.getElementsByClassName('pen-btn active')) {
+      elm.classList.remove('active');
     }
-    target.classList.add("active");
+    target.classList.add('active');
   }
 
 
@@ -505,97 +521,95 @@ window.addEventListener("load", () => {
   updatePencilStyleCanvas();
   clearCanvas();
 
-  // 接続開始
-  multiparty.start();
 
-  /*******************************************
+  /** *****************************************
   *  名前の変更
   ********************************************/
 
   /* 送信されたら名前の変更 */
-  $("#rename-new-name-forms").on("submit", function (ev) {
+  $('#rename-new-name-forms').on('submit', function (ev) {
     ev.preventDefault();
     rename();
   });
-  $("#rename-ok-button").on("click", function () {
+  $('#rename-ok-button').on('click', function () {
     rename();
   });
 
   /* 表示されたら入力欄にフォーカス */
   $('#rename-modal').on('shown.bs.modal', function () {
     $('#rename-new-name-form').focus();
-  })
+  });
 
   /* チャットやビデオの名前を更新 */
   function renameGUI(peerid) {
-    $(".user-name." + peerid).text(peers[peerid].name);
+    $(`.user-name.${peerid}`).text(peers[peerid].name);
   }
 
   function rename() {
-    myPeer.name = $("#rename-new-name-form").val();
+    myPeer.name = $('#rename-new-name-form').val();
     setTimeout(() => {
-      multiparty.send(JSON.stringify({
-        "id": myPeer.id,
-        "type": "rename",
-        "name": myPeer.name,
-        "time": (new Date().getTime())
+      room.send(JSON.stringify({
+        'id': myPeer.id,
+        'type': 'rename',
+        'name': myPeer.name,
+        'time': (new Date().getTime())
       }));
     }, 500);
     renameGUI(myPeer.id);
-    $("#rename-modal").modal("hide");
+    $('#rename-modal').modal('hide');
   }
 
 
-  /*******************************************
+  /** *****************************************
   *  ログアウト
   ********************************************/
-  $("#logoutBtn").on("click", function (ev) {
+  $('#logoutBtn').on('click', function (ev) {
     ev.preventDefault();
-    multiparty.close();
-    console.log("ログアウト");
+    room.close();
+    console.log('ログアウト');
   });
 
-  /*******************************************
+  /** *****************************************
   *  共有メソッド
   ********************************************/
 
   /* メッセージを追加 */
-  function appendMessage(peerid, msg){
-    $("#chat-log-area").prepend(`
+  function appendMessage(peerid, msg) {
+    $('#chat-log-area').prepend(`
       <div class="chat-message-box">
         <figure class="chat-user-icon">
           <img class="avatar" src="icons/user_icon.png">
           <figcaption class="user-name chat ${peerid}">${peers[peerid].name}</figcaption>
         </figure>
         <div class="chat-message-area">
-          <div class="chat-message-content${peerid === myPeer.id ? " me" : ""}">${msg}</div>
+          <div class="chat-message-content${peerid === myPeer.id ? ' me' : ''}">${msg}</div>
         </div>
       </div>
     `);
   }
 
   /*  ビデオを追加 */
-  function appendVideo(peerid, objUrl){
-    // ノードの生成
-    let vNode = MultiParty.util.createVideoNode(objUrl);
-
-    // ビデオが自分のものなら，ミュートに
-    if(peerid === myPeer.id){
-      vNode.volume = 0;
-    }
-    $("#streams").append(`
+  function appendVideo(peerid, stream) {
+    $('#streams').append(`
       <div class="panel panel-default talkView ${peerid}">
         <div class="panel-heading text-center">
-          <h3 class="panel-title user-name talk ${peerid}">${peerid === myPeer.id ? "自分" : peers[peerid].name}</h3>
+          <h3 class="panel-title user-name talk ${peerid}">${peerid === myPeer.id ? '自分' : peers[peerid].name}</h3>
         </div>
-        <div class="panel-body ${peerid}"></div>
+        <div class="panel-body ${peerid}">
+          <video class="talk-video ${peerid}"></video>
+        </div>
       </div>
     `);
-    $(".panel-body." + peerid).append($(vNode).addClass("talk-video"));
+    const video = $(`.talk-video.${peerid}`).get(0);
+    video.srcObject = stream;
+    // ビデオが自分のものなら，ミュートに
+    if (peerid === myPeer.id) {
+      video.volume = 0;
+    }
   }
 
 
 
 }, false);
 
-console.log("読み込み完了");
+console.log('読み込み完了');
